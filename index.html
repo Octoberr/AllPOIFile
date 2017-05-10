@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>获取公交站点坐标</title>
+    <style type="text/css">
+    html,
+    body {
+        height: 100%;
+    }
+    
+    #results,
+    #coordinate {
+        display: inline-block;
+        width: 45%;
+        min-height: 200px;
+        border: 1px solid #e4e4e4;
+        vertical-align: top;
+    }
+    </style>
+    <script src="http://api.map.baidu.com/api?v=1.3" type="text/javascript"></script>
+    <script src="jquery-2.1.2.min.js" type="text/javascript"></script>
+</head>
+
+<body>
+    <p>
+        <label for="busId">公交线路：</label>
+        <input type="text" value="521" id="busId" />
+        <input type="button" id="btn-search" value="查询" />
+    </p>
+    <div id="results"></div>
+    <div id="coordinate"></div>
+    <script type="text/javascript">
+    (function() {
+        var tempVar;
+        var busline = new BMap.BusLineSearch('成都', {
+            renderOptions: {
+                panel: "results"
+            },
+            onGetBusListComplete: function(result) {
+                if (result) {
+                    console.log(result);
+                    tempVar = result; //此时的结果并不包含坐标信息，所以getCoordinate函数不能在此调用。通过跟踪变量，坐标是在onGetBusListComplete之后才被百度的包添加进来的 
+                    busline.getBusLine(result.getBusListItem(0));
+                }
+            },
+            // api文档中一共有四个回调，除了onGetBusListComplete和onBusLineHtmlSet之外，还有onBusListHtmlSet和onGetBusLineComplete， 
+            // 经过测试只有在onBusLineHtmlSet这一步（线路格式化完毕）的时候，才会将坐标添加到tempVar中 
+            // 所以上面busline.getBusLine(result.getBusListItem(0));是必须的，不然没有办法获得坐标列表 
+            onBusLineHtmlSet: function() {
+                try {
+                    getCoordinate(tempVar);
+                } catch (e) {}
+            }
+        });
+
+        function getCoordinate(result) {
+            var coordinate = document.getElementById("coordinate");
+            var stations = result['0']._stations;
+            $.ajax({
+                    url: '/pushData',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        data: stations
+                    }),
+                })
+                .done(function(response) {
+                    console.log("success");
+                })
+                .fail(function(xhr, ajaxOptions, thrownError) {
+                    console.log("error");
+                })
+                .always(function() {
+                    console.log("complete");
+                });
+
+            var html = [];
+            stations.forEach(function(item) {
+                html.push('<li>' + item.name + ' ' + item.position.lng + ' ' + item.position.lat + '</li>');
+            });
+            coordinate.innerHTML = '<ul>' + html.join('') + '</ul>';
+        }
+        document.getElementById('btn-search').onclick = function() {
+            busline.getBusList(document.getElementById("busId").value);
+        }
+    })();
+    </script>
+</body>
+
+</html>
